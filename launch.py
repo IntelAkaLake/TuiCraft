@@ -48,7 +48,7 @@ def launch_minecraft(
     # Java classpath
     classpath = os.pathsep.join(jar_files)
 
-    # Java arguments. Requires custom implementations
+    # Java arguments. Requires custom implementation
     java_args = [
         "-Xmx2G",  # Max 2GB of RAM
         "-Xms1G",  # Min 1GB of RAM
@@ -85,8 +85,8 @@ def launch_minecraft(
             stderr=subprocess.PIPE,
         )
         stdout, stderr = process.communicate()
-        print("Minecraft Output:\n", stdout.decode())
-        print("Minecraft Errors:\n", stderr.decode())
+        print(stdout.decode())
+        print(stderr.decode())
     except Exception as e:
         print(f"Failed to launch Minecraft: {e}")
 

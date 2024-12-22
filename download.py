@@ -4,9 +4,12 @@ import json
 import requests
 from concurrent.futures import ThreadPoolExecutor
 from tqdm import tqdm
+from bs4 import BeautifulSoup  # For parsing Fabric Maven repository
+import subprocess  # For running the Fabric installer JAR
 
 # Constants
 VERSION_MANIFEST_URL = "https://launchermeta.mojang.com/mc/game/version_manifest.json"
+FABRIC_INSTALLER_URL = "https://maven.fabricmc.net/net/fabricmc/fabric-installer/"
 APPDATA = os.getenv('APPDATA')
 BASE_PATH = os.path.join(APPDATA, "TuiCraft")
 LIBRARIES_PATH = os.path.join(BASE_PATH, "libraries")
@@ -16,10 +19,10 @@ ASSETS_PATH = os.path.join(BASE_PATH, "assets")
 os.makedirs(LIBRARIES_PATH, exist_ok=True)
 os.makedirs(ASSETS_PATH, exist_ok=True)
 
+
 def download_file(url, save_path):
-    """Function to download a file with progress"""
+    """Function to download a file with progress."""
     if os.path.exists(save_path):
-        print(f"File already exists: {save_path}")
         return
     try:
         with requests.get(url, stream=True, timeout=10) as response:
@@ -39,26 +42,84 @@ def download_file(url, save_path):
     except Exception as e:
         print(f"Failed to download {url}: {e}")
 
+
 def organize_file_path(base_path, file_path):
-    """Function to organize file paths"""
+    """Function to organize file paths."""
     parts = file_path.replace("\\", "/").split("/")
     sub_path = os.path.join(base_path, *parts[:-1])  # Exclude the filename
     os.makedirs(sub_path, exist_ok=True)
     return os.path.join(sub_path, parts[-1])  # Full path including the file name
 
+
 def download_files_parallel(file_list):
-    """Function to download files in parallel"""
+    """Function to download files in parallel."""
     with ThreadPoolExecutor() as executor:
         list(tqdm(executor.map(lambda file: download_file(*file), file_list), total=len(file_list)))
 
+
+def get_latest_fabric_installer_url():
+    """Fetch the latest Fabric installer JAR URL."""
+    try:
+        response = requests.get(FABRIC_INSTALLER_URL)
+        response.raise_for_status()
+
+        # Parse the HTML to find the latest version directory
+        soup = BeautifulSoup(response.text, "html.parser")
+        links = [a["href"].strip("/") for a in soup.find_all("a", href=True)]
+        
+        # Assume directories with version numbers are valid
+        versions = [link for link in links if link.replace(".", "").isdigit()]
+        if not versions:
+            raise Exception("No valid Fabric versions found.")
+
+        latest_version = sorted(versions, reverse=True)[0]
+        fabric_installer_url = f"{FABRIC_INSTALLER_URL}{latest_version}/fabric-installer-{latest_version}.jar"
+        return fabric_installer_url
+    except Exception as e:
+        raise Exception(f"Failed to determine the latest Fabric installer URL: {e}")
+
+
+def get_fabric_installer(save_path):
+    """Download the latest Fabric installer JAR if it doesn't already exist."""  
+    try:
+        if os.path.exists(save_path):
+            print(f"Fabric installer already exists: {save_path}")
+            return  # Skip download if the file already exists
+        else:
+            fabric_installer_url = get_latest_fabric_installer_url()
+            download_file(fabric_installer_url, save_path)
+            print(f"Fabric installer downloaded: {save_path}\n")
+    except Exception as e:
+        print(f"Failed to download Fabric installer: {e}\n")
+
+
+def open_fabric_installer(save_path):
+    """Open the Fabric installer JAR."""
+    try:
+        subprocess.run(["java", "-jar", save_path], check=True)
+    except FileNotFoundError:
+        return
+    except Exception as e:
+        return
+
+
 def main():
-    # Step 1: Parse version from command-line arguments
+    # Step 1: Parse command-line arguments
     if len(sys.argv) < 2:
-        print("Usage: python download.py <version>")
+        print("Usage: python download.py <version> OR python download.py fabric")
         sys.exit(1)
 
-    version_id = sys.argv[1]
-    print(f"Selected version: {version_id}")
+    option = sys.argv[1].lower()
+
+    if option == "fabric":
+        # Download Fabric installer
+        fabric_installer_path = os.path.join(BASE_PATH, "fabric-installer.jar")
+        get_fabric_installer(fabric_installer_path)
+        open_fabric_installer(fabric_installer_path)
+        sys.exit(0)
+
+    # If not Fabric, assume it's a Minecraft version
+    version_id = option
 
     # Step 2: Download the version manifest
     manifest_path = os.path.join(BASE_PATH, "version_manifest.json")
@@ -66,7 +127,6 @@ def main():
     if response.status_code == 200:
         with open(manifest_path, "wb") as file:
             file.write(response.content)
-        print(f"Version manifest downloaded and saved to {manifest_path}")
     else:
         raise Exception("Failed to download version manifest")
 
@@ -132,6 +192,7 @@ def main():
     print("Downloading assets...")
     download_files_parallel(asset_files)
     print(f"All files for version {version_id} have been downloaded!")
+
 
 if __name__ == "__main__":
     main()
