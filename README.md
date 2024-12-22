@@ -53,7 +53,9 @@ This project is licensed under the GNU General Public License v3.0. See the [LIC
 ---
 
 ## **TODO**
-- Refresh Instances (Doesn't work)
-- Manage Instances
+- ~~Refresh Instances (Doesn't work)~~ done in v0.2.0-alpha
+- Manage Instances by shortcut
 - Edit Username (Default: User)
-- Make "About" open our GitHub link
+- Make Fabric download by shortcut on the focused Instance
+- ~~Make "About" open our GitHub link~~ done in v0.2.0-alpha
+- ~~LAST:~~ Mod/Texture menu
